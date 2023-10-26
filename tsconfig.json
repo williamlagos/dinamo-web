@@ -1,19 +1,23 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "lib": [ "es2015", "es2017", "dom" ],
-    "target": "es5",
-    "experimentalDecorators": true,
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
-    "outDir": "temp/vscode-dist",
-    "forceConsistentCasingInFileNames": true
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
   },
-  "exclude": [
-    "node_modules",
-    "library",
-    "local",
-    "temp",
-    "build",
-    "settings"
-  ]
+  "include": ["src"]
 }
