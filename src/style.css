@@ -1,97 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+  font-family: 'Press Start 2P', monospace, system-ui, sans-serif;
+  color-scheme: dark;
+  background-color: #0b0c10;
+  color: #c5c6c7;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
   min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at center, #1f2833 0%, #0b0c10 100%);
+  overflow-x: hidden;
+  padding: 10px;
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.arcade-cabinet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #11141a;
+  border: 4px solid #45a29e;
+  border-radius: 12px;
+  box-shadow: 0 0 30px rgba(102, 252, 241, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.8);
+  padding: 14px;
+  max-width: 520px;
+  width: 100%;
+}
+
+.cabinet-marquee {
+  font-size: 14px;
+  font-weight: bold;
+  color: #66fcf1;
+  text-shadow: 0 0 10px #66fcf1, 0 0 20px #45a29e;
+  margin-bottom: 12px;
+  letter-spacing: 2px;
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vanilla:hover {
-  filter: drop-shadow(0 0 2em #3178c6aa);
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-
-button {
+.canvas-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 448 / 640;
+  max-height: 75vh;
+  background: #000;
   border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+.canvas-wrapper canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  display: block;
+}
+
+/* Retro CRT scanline effect */
+.crt-scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.25) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0.7;
+}
+
+/* Arcade control deck */
+.arcade-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 14px;
+  padding: 0 10px;
+  gap: 12px;
+}
+
+.dpad-buttons, .action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.arcade-btn {
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 5px #000, 0 8px 10px rgba(0, 0, 0, 0.5);
+  transition: transform 0.05s, box-shadow 0.05s;
+}
+
+.arcade-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px #000, 0 3px 5px rgba(0, 0, 0, 0.5);
+}
+
+.dpad {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(145deg, #333a42, #1f2429);
+  color: #66fcf1;
+  font-size: 18px;
+  border: 2px solid #45a29e;
+}
+
+.fire-btn {
+  width: 64px;
+  height: 64px;
+  background: radial-gradient(circle at 35% 35%, #ff4b4b, #b30000);
+  color: #ffffff;
+  font-size: 11px;
+  border: 2px solid #ff7878;
+  text-shadow: 0 0 4px #000;
+}
+
+.sound-btn {
+  width: 48px;
+  height: 48px;
+  background: #20242a;
+  color: #fff;
+  font-size: 16px;
+  border: 2px solid #666;
+}
+
+.keyboard-legend {
+  margin-top: 12px;
+  font-size: 8px;
+  color: #8892b0;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.keyboard-legend strong {
+  color: #66fcf1;
+}
+
+@media (max-width: 480px) {
+  .cabinet-marquee {
+    font-size: 11px;
   }
-  a:hover {
-    color: #747bff;
+  .dpad {
+    width: 46px;
+    height: 46px;
+    font-size: 14px;
   }
-  button {
-    background-color: #f9f9f9;
+  .fire-btn {
+    width: 56px;
+    height: 56px;
+    font-size: 10px;
+  }
+  .keyboard-legend {
+    display: none;
   }
 }
