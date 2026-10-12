@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js'
 import { GameTextures } from './textures'
 import { sound } from './audio'
 import { Point, getEntrancePath, getDivePath } from './paths'
+import { leaderboard } from './leaderboard'
 
 export type EnemyType = 'bee' | 'butterfly' | 'boss'
 export type EnemyState = 'entering' | 'formation' | 'diving' | 'returning'
@@ -772,5 +773,14 @@ export class GalagaGame {
     this.isGameOver = true
     this.messageText.text = `GAME OVER\n\nFINAL SCORE: ${this.score}\n\nPRESS FIRE TO PLAY`
     this.messageText.visible = true
+
+    // Submit score to elements-server (if available)
+    if (this.score > 0) {
+      leaderboard.submitScore('YOU', this.score, this.stage, 'web').then(res => {
+        if (res && res.rank) {
+          this.messageText.text = `GAME OVER\n\nFINAL SCORE: ${this.score}\nGLOBAL RANK: #${res.rank}\n\nPRESS FIRE TO PLAY`
+        }
+      })
+    }
   }
 }
