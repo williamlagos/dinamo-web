@@ -44,7 +44,6 @@ export function getEntrancePath(pathType: 'topLeft' | 'topRight' | 'leftSide' | 
 
   switch (pathType) {
     case 'topLeft':
-      // Enters from upper left, loops in center, curves down and up into target
       controls = [
         { x: 100, y: -40 },
         { x: 140, y: 150 },
@@ -64,7 +63,6 @@ export function getEntrancePath(pathType: 'topLeft' | 'topRight' | 'leftSide' | 
       break
 
     case 'topRight':
-      // Mirror of top left
       controls = [
         { x: 348, y: -40 },
         { x: 308, y: 150 },
@@ -84,7 +82,6 @@ export function getEntrancePath(pathType: 'topLeft' | 'topRight' | 'leftSide' | 
       break
 
     case 'leftSide':
-      // Enters from middle-left side, loops low, swoops up
       controls = [
         { x: -40, y: 380 },
         { x: 160, y: 420 },
@@ -99,7 +96,6 @@ export function getEntrancePath(pathType: 'topLeft' | 'topRight' | 'leftSide' | 
       break
 
     case 'rightSide':
-      // Mirror of left side
       controls = [
         { x: 488, y: 380 },
         { x: 288, y: 420 },
@@ -117,20 +113,92 @@ export function getEntrancePath(pathType: 'topLeft' | 'topRight' | 'leftSide' | 
   return generateSplinePath(controls, 35)
 }
 
+// Game Boy 160x144 entrance paths
+export function getGBEntrancePath(pathType: 'topLeft' | 'topRight' | 'leftSide' | 'rightSide', target: Point): Point[] {
+  let controls: Point[] = []
+
+  switch (pathType) {
+    case 'topLeft':
+      controls = [
+        { x: 30, y: -20 },
+        { x: 45, y: 35 },
+        { x: 110, y: 55 },
+        { x: 95, y: 80 },
+        { x: 95, y: 80 },
+        { x: 80, y: 105 },
+        { x: 40, y: 95 },
+        { x: 50, y: 70 },
+        { x: 50, y: 70 },
+        { x: 65, y: 45 },
+        { x: target.x, y: target.y + 20 },
+        { x: target.x, y: target.y },
+      ]
+      break
+
+    case 'topRight':
+      controls = [
+        { x: 130, y: -20 },
+        { x: 115, y: 35 },
+        { x: 50, y: 55 },
+        { x: 65, y: 80 },
+        { x: 65, y: 80 },
+        { x: 80, y: 105 },
+        { x: 120, y: 95 },
+        { x: 110, y: 70 },
+        { x: 110, y: 70 },
+        { x: 95, y: 45 },
+        { x: target.x, y: target.y + 20 },
+        { x: target.x, y: target.y },
+      ]
+      break
+
+    case 'leftSide':
+      controls = [
+        { x: -20, y: 95 },
+        { x: 55, y: 105 },
+        { x: 100, y: 120 },
+        { x: 105, y: 90 },
+        { x: 105, y: 90 },
+        { x: 110, y: 60 },
+        { x: target.x, y: target.y + 20 },
+        { x: target.x, y: target.y },
+      ]
+      break
+
+    case 'rightSide':
+      controls = [
+        { x: 180, y: 95 },
+        { x: 105, y: 105 },
+        { x: 60, y: 120 },
+        { x: 55, y: 90 },
+        { x: 55, y: 90 },
+        { x: 50, y: 60 },
+        { x: target.x, y: target.y + 20 },
+        { x: target.x, y: target.y },
+      ]
+      break
+  }
+
+  return generateSplinePath(controls, 20)
+}
+
 // Generate dive-bomb trajectory swooping down towards playerX and sweeping away
 export function getDivePath(start: Point, playerX: number, screenWidth: number, screenHeight: number): Point[] {
   const sweepDir = start.x > screenWidth / 2 ? -1 : 1
+  const xOffset = screenWidth <= 160 ? 15 : 40
+  const yOffset = screenWidth <= 160 ? 8 : 20
+
   const controls: Point[] = [
     { x: start.x, y: start.y },
-    { x: start.x + sweepDir * 40, y: start.y - 20 },
-    { x: start.x + sweepDir * 80, y: start.y + 60 },
-    { x: playerX + sweepDir * 20, y: screenHeight * 0.55 },
+    { x: start.x + sweepDir * xOffset, y: start.y - yOffset },
+    { x: start.x + sweepDir * xOffset * 2, y: start.y + yOffset * 3 },
+    { x: playerX + sweepDir * (xOffset / 2), y: screenHeight * 0.55 },
 
-    { x: playerX + sweepDir * 20, y: screenHeight * 0.55 },
-    { x: playerX - sweepDir * 40, y: screenHeight * 0.8 },
-    { x: playerX - sweepDir * 80, y: screenHeight + 50 },
-    { x: screenWidth / 2 - sweepDir * 120, y: screenHeight + 80 },
+    { x: playerX + sweepDir * (xOffset / 2), y: screenHeight * 0.55 },
+    { x: playerX - sweepDir * xOffset, y: screenHeight * 0.8 },
+    { x: playerX - sweepDir * xOffset * 2, y: screenHeight + yOffset * 2 },
+    { x: screenWidth / 2 - sweepDir * xOffset * 3, y: screenHeight + yOffset * 3 },
   ]
 
-  return generateSplinePath(controls, 30)
+  return generateSplinePath(controls, 25)
 }

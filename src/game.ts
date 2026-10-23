@@ -1,7 +1,7 @@
 import * as PIXI from 'pixi.js'
-import { GameTextures } from './textures'
+import { GameTextures, ThemeType, generateTextures, getColorMapForTheme } from './textures'
 import { sound } from './audio'
-import { Point, getEntrancePath, getDivePath } from './paths'
+import { Point, getGBEntrancePath, getDivePath } from './paths'
 import { leaderboard } from './leaderboard'
 
 export type EnemyType = 'bee' | 'butterfly' | 'boss'
@@ -44,8 +44,9 @@ interface Star {
 export class GalagaGame {
   public app: PIXI.Application
   public textures: GameTextures
-  public width = 448
-  public height = 640
+  public theme: ThemeType = 'dmg'
+  public width = 160
+  public height = 144
 
   // Display Containers
   private starContainer = new PIXI.Container()
@@ -78,134 +79,187 @@ export class GalagaGame {
     right: false,
     fire: false,
   }
-  private fireCooldown = 0
 
-  // Formation & Swarm Timers
+  // Timers & Formation
+  private fireCooldown = 0
   private formationTime = 0
   private diveTimer = 0
-  private waveQueue: {
-    type: EnemyType
-    row: number
-    col: number
-    pathType: 'topLeft' | 'topRight' | 'leftSide' | 'rightSide'
-    delay: number
-  }[] = []
-  private spawnTimer = 0
+  private waveQueue: { type: EnemyType; row: number; col: number; pathType: 'topLeft' | 'topRight' | 'leftSide' | 'rightSide' }[] = []
+  private spawnCooldown = 0
 
-  // HUD Text Elements
+  // HUD Labels
   private scoreText!: PIXI.Text
   private highScoreText!: PIXI.Text
   private stageText!: PIXI.Text
   private messageText!: PIXI.Text
 
-  constructor(app: PIXI.Application, textures: GameTextures) {
+  constructor(app: PIXI.Application, textures: GameTextures, theme: ThemeType = 'dmg') {
     this.app = app
     this.textures = textures
+    this.theme = theme
 
-    // Load High Score
-    const saved = localStorage.getItem('dinamo_galaga_high_score')
-    if (saved) {
-      this.highScore = parseInt(saved, 10) || 20000
-    }
-
-    this.setupContainers()
-    this.setupStarfield()
-    this.setupHUD()
-    this.setupPlayer()
-    this.startNewGame()
-  }
-
-  private setupContainers() {
+    // Set up layer hierarchy
     this.app.stage.addChild(this.starContainer)
     this.app.stage.addChild(this.gameContainer)
     this.app.stage.addChild(this.hudContainer)
     this.app.stage.addChild(this.overlayContainer)
+
+    // Load High Score from localStorage
+    const savedHigh = localStorage.getItem('dinamo_galaga_high_score')
+    if (savedHigh) {
+      this.highScore = parseInt(savedHigh, 10) || 20000
+    }
+
+    this.setupStars()
+    this.setupHUD()
+    this.setupPlayer()
+    this.applyThemeColors()
+    this.startNewGame()
   }
 
-  private setupStarfield() {
-    const starColors = [0xffffff, 0x88ccff, 0xffe066, 0xff6666]
-    for (let i = 0; i < 90; i++) {
+  public setTheme(theme: ThemeType) {
+    this.theme = theme
+    this.textures = generateTextures(theme, 1)
+    sound.mode = theme === 'arcade' ? 'arcade' : 'gb'
+
+    this.applyThemeColors()
+    this.updateLiveTextures()
+  }
+
+  private applyThemeColors() {
+    const colors = getColorMapForTheme(this.theme)
+
+    let bgColor = 0x081820
+    let primaryTextColor = colors.W
+    let secondaryTextColor = colors.B
+
+    if (this.theme === 'pocket') {
+      bgColor = 0x000000
+      primaryTextColor = '#ffffff'
+      secondaryTextColor = '#aaaaaa'
+    } else if (this.theme === 'gbc') {
+      bgColor = 0x081020
+      primaryTextColor = '#f8d800'
+      secondaryTextColor = '#00e8d8'
+    } else if (this.theme === 'arcade') {
+      bgColor = 0x05050d
+      primaryTextColor = '#ffffff'
+      secondaryTextColor = '#ff2222'
+    } else {
+      // dmg
+      bgColor = 0x081820
+      primaryTextColor = colors.W
+      secondaryTextColor = colors.B
+    }
+
+    this.app.renderer.background.color = bgColor
+
+    if (this.scoreText) {
+      this.scoreText.style.fill = primaryTextColor
+    }
+    if (this.highScoreText) {
+      this.highScoreText.style.fill = primaryTextColor
+    }
+    if (this.stageText) {
+      this.stageText.style.fill = secondaryTextColor
+    }
+    if (this.messageText) {
+      this.messageText.style.fill = primaryTextColor
+    }
+
+    // Refresh star palette
+    this.setupStars()
+  }
+
+  private updateLiveTextures() {
+    if (this.player) {
+      this.player.texture = this.textures.player
+    }
+    for (const enemy of this.enemies) {
+      this.updateEnemyTexture(enemy)
+    }
+    this.updateLifeIcons()
+  }
+
+  private setupStars() {
+    this.starContainer.removeChildren()
+    this.stars = []
+
+    const numStars = 28
+    const colors = getColorMapForTheme(this.theme)
+    const starPalette = [
+      PIXI.utils.string2hex(colors.W),
+      PIXI.utils.string2hex(colors.B),
+      PIXI.utils.string2hex(colors.R),
+    ]
+
+    for (let i = 0; i < numStars; i++) {
       const gfx = new PIXI.Graphics()
-      const color = starColors[Math.floor(Math.random() * starColors.length)]
-      const size = Math.random() > 0.85 ? 2.5 : 1.5
+      const color = starPalette[i % starPalette.length]
       gfx.beginFill(color)
-      gfx.drawRect(0, 0, size, size)
+      gfx.drawRect(0, 0, 1, 1)
       gfx.endFill()
 
-      gfx.x = Math.random() * this.width
-      gfx.y = Math.random() * this.height
+      gfx.x = Math.floor(Math.random() * this.width)
+      gfx.y = Math.floor(Math.random() * this.height)
 
-      const speed = 0.5 + Math.random() * 2.2
+      this.starContainer.addChild(gfx)
       this.stars.push({
         gfx,
-        speed,
+        speed: 8 + Math.random() * 22,
         twinkleTimer: Math.random() * 60,
       })
-      this.starContainer.addChild(gfx)
     }
   }
 
   private setupHUD() {
-    const fontStyle = new PIXI.TextStyle({
-      fontFamily: '"Courier New", Courier, monospace',
-      fontSize: 14,
-      fontWeight: 'bold',
-      fill: ['#ffffff'],
-      letterSpacing: 2,
-    })
+    const textStyle: Partial<PIXI.ITextStyle> = {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: 6,
+      fill: '#e0f8d0',
+      align: 'left',
+    }
 
-    const redStyle = new PIXI.TextStyle({
-      fontFamily: '"Courier New", Courier, monospace',
-      fontSize: 14,
-      fontWeight: 'bold',
-      fill: ['#ff3333'],
-      letterSpacing: 2,
-    })
+    const title1Up = new PIXI.Text('1UP', textStyle)
+    title1Up.position.set(6, 4)
+    this.hudContainer.addChild(title1Up)
 
-    const title1UP = new PIXI.Text('1UP', redStyle)
-    title1UP.position.set(30, 8)
-    this.hudContainer.addChild(title1UP)
-
-    this.scoreText = new PIXI.Text('00', fontStyle)
-    this.scoreText.position.set(30, 26)
+    this.scoreText = new PIXI.Text('00', textStyle)
+    this.scoreText.position.set(6, 12)
     this.hudContainer.addChild(this.scoreText)
 
-    const titleHigh = new PIXI.Text('HIGH SCORE', redStyle)
-    titleHigh.position.set(this.width / 2 - 50, 8)
+    const titleHigh = new PIXI.Text('HIGH', textStyle)
+    titleHigh.position.set(this.width / 2 - 12, 4)
     this.hudContainer.addChild(titleHigh)
 
-    this.highScoreText = new PIXI.Text(`${this.highScore}`, fontStyle)
-    this.highScoreText.position.set(this.width / 2 - 30, 26)
+    this.highScoreText = new PIXI.Text(`${this.highScore}`, textStyle)
+    this.highScoreText.position.set(this.width / 2 - 12, 12)
     this.hudContainer.addChild(this.highScoreText)
 
-    this.stageText = new PIXI.Text(`STAGE 1`, redStyle)
-    this.stageText.position.set(this.width - 100, 26)
+    this.stageText = new PIXI.Text('ST 1', textStyle)
+    this.stageText.position.set(this.width - 32, 12)
     this.hudContainer.addChild(this.stageText)
 
-    this.messageText = new PIXI.Text('', new PIXI.TextStyle({
-      fontFamily: '"Courier New", Courier, monospace',
-      fontSize: 22,
-      fontWeight: 'bold',
-      fill: ['#ffff00'],
+    this.messageText = new PIXI.Text('', {
+      fontFamily: '"Press Start 2P", monospace',
+      fontSize: 8,
+      fill: '#e0f8d0',
       align: 'center',
-      dropShadow: true,
-      dropShadowColor: '#ff0000',
-      dropShadowDistance: 2,
-    }))
+      lineHeight: 12,
+    })
     this.messageText.anchor.set(0.5)
     this.messageText.position.set(this.width / 2, this.height / 2)
     this.overlayContainer.addChild(this.messageText)
-
-    this.updateLifeIcons()
   }
 
   private updateLifeIcons() {
     this.lifeIcons.forEach(icon => icon.destroy())
     this.lifeIcons = []
+
     for (let i = 0; i < Math.max(0, this.lives - 1); i++) {
       const icon = new PIXI.Sprite(this.textures.playerMini)
       icon.anchor.set(0.5)
-      icon.position.set(25 + i * 20, this.height - 18)
+      icon.position.set(10 + i * 10, this.height - 6)
       this.hudContainer.addChild(icon)
       this.lifeIcons.push(icon)
     }
@@ -214,7 +268,7 @@ export class GalagaGame {
   private setupPlayer() {
     this.player = new PIXI.Sprite(this.textures.player)
     this.player.anchor.set(0.5)
-    this.player.position.set(this.width / 2, this.height - 50)
+    this.player.position.set(this.width / 2, this.height - 14)
     this.gameContainer.addChild(this.player)
   }
 
@@ -226,8 +280,9 @@ export class GalagaGame {
     this.isPlayerDead = false
     this.clearEnemiesAndBullets()
     this.updateLifeIcons()
+    this.scoreText.text = '00'
     this.player.visible = true
-    this.player.position.set(this.width / 2, this.height - 50)
+    this.player.position.set(this.width / 2, this.height - 14)
     this.startStage(this.stage)
   }
 
@@ -242,28 +297,28 @@ export class GalagaGame {
 
   private startStage(stageNumber: number) {
     this.stage = stageNumber
-    this.stageText.text = `STAGE ${stageNumber}`
+    this.stageText.text = `ST ${stageNumber}`
     this.isStageIntro = true
     this.messageText.text = `STAGE ${stageNumber}\nREADY`
     this.messageText.visible = true
 
     sound.playStageStart()
 
-    // Build the grid formation wave plan
+    // Build the 10-ship armada wave plan matching GBGame
     this.buildWaveQueue()
 
     setTimeout(() => {
       this.isStageIntro = false
       this.messageText.visible = false
-    }, 2200)
+    }, 2000)
   }
 
-  // Pre-calculate target grid positions for a 4x10 fleet
+  // Target positions for 10-ship armada (2 Bosses, 4 Escorts, 4 Bees)
   private getFormationSlot(row: number, col: number): Point {
-    const gridStartX = 60
-    const gridStartY = 90
-    const colSpacing = 36
-    const rowSpacing = 28
+    const gridStartX = 28
+    const gridStartY = 24
+    const colSpacing = 16
+    const rowSpacing = 14
     return {
       x: gridStartX + col * colSpacing,
       y: gridStartY + row * rowSpacing,
@@ -273,102 +328,24 @@ export class GalagaGame {
   private buildWaveQueue() {
     this.waveQueue = []
 
-    // 4 Bosses in Row 0 (cols 3, 4, 5, 6)
-    // 8 Butterflies in Row 1 (cols 1 through 8)
-    // 8 Bees in Row 2 (cols 1 through 8)
-    // 10 Bees in Row 3 (cols 0 through 9)
-
-    // Wave 1: 4 Bosses + 4 Butterflies via topLeft & topRight
-    const wave1 = [
-      { type: 'boss' as EnemyType, row: 0, col: 4, pathType: 'topLeft' as const },
-      { type: 'boss' as EnemyType, row: 0, col: 5, pathType: 'topRight' as const },
-      { type: 'boss' as EnemyType, row: 0, col: 3, pathType: 'topLeft' as const },
-      { type: 'boss' as EnemyType, row: 0, col: 6, pathType: 'topRight' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 4, pathType: 'topLeft' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 5, pathType: 'topRight' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 3, pathType: 'topLeft' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 6, pathType: 'topRight' as const },
-    ]
-
-    // Wave 2: 4 Butterflies + 4 Bees via leftSide & rightSide
-    const wave2 = [
-      { type: 'butterfly' as EnemyType, row: 1, col: 1, pathType: 'leftSide' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 8, pathType: 'rightSide' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 2, pathType: 'leftSide' as const },
-      { type: 'butterfly' as EnemyType, row: 1, col: 7, pathType: 'rightSide' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 4, pathType: 'leftSide' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 5, pathType: 'rightSide' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 3, pathType: 'leftSide' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 6, pathType: 'rightSide' as const },
-    ]
-
-    // Wave 3: 4 Bees row 2 + 4 Bees row 3 via topLeft & topRight
-    const wave3 = [
-      { type: 'bee' as EnemyType, row: 2, col: 1, pathType: 'topLeft' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 8, pathType: 'topRight' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 2, pathType: 'topLeft' as const },
-      { type: 'bee' as EnemyType, row: 2, col: 7, pathType: 'topRight' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 4, pathType: 'topLeft' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 5, pathType: 'topRight' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 3, pathType: 'topLeft' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 6, pathType: 'topRight' as const },
-    ]
-
-    // Wave 4: remaining 6 Bees row 3 via leftSide & rightSide
-    const wave4 = [
-      { type: 'bee' as EnemyType, row: 3, col: 0, pathType: 'leftSide' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 9, pathType: 'rightSide' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 1, pathType: 'leftSide' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 8, pathType: 'rightSide' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 2, pathType: 'leftSide' as const },
-      { type: 'bee' as EnemyType, row: 3, col: 7, pathType: 'rightSide' as const },
-    ]
-
-    const allWaves = [...wave1, ...wave2, ...wave3, ...wave4]
-    allWaves.forEach((w, i) => {
-      this.waveQueue.push({
-        ...w,
-        delay: 8 + i * 14,
-      })
-    })
+    // 10-ship armada layout:
+    // Row 0: 2 Bosses (cols 3, 4)
+    // Row 1: 4 Red Escorts (cols 2, 3, 4, 5)
+    // Row 2: 4 Blue Bees (cols 2, 3, 4, 5)
+    this.waveQueue.push(
+      { type: 'boss', row: 0, col: 3, pathType: 'topLeft' },
+      { type: 'boss', row: 0, col: 4, pathType: 'topRight' },
+      { type: 'butterfly', row: 1, col: 2, pathType: 'leftSide' },
+      { type: 'butterfly', row: 1, col: 5, pathType: 'rightSide' },
+      { type: 'butterfly', row: 1, col: 3, pathType: 'topLeft' },
+      { type: 'butterfly', row: 1, col: 4, pathType: 'topRight' },
+      { type: 'bee', row: 2, col: 2, pathType: 'leftSide' },
+      { type: 'bee', row: 2, col: 5, pathType: 'rightSide' },
+      { type: 'bee', row: 2, col: 3, pathType: 'topLeft' },
+      { type: 'bee', row: 2, col: 4, pathType: 'topRight' }
+    )
   }
 
-  private spawnEnemy(item: (typeof this.waveQueue)[0]) {
-    const slot = this.getFormationSlot(item.row, item.col)
-    const path = getEntrancePath(item.pathType, slot)
-    const initialPos = path[0] || { x: 0, y: 0 }
-
-    let texture = this.textures.bee1
-    let health = 1
-    if (item.type === 'butterfly') {
-      texture = this.textures.butterfly1
-    } else if (item.type === 'boss') {
-      texture = this.textures.bossGreen1
-      health = 2
-    }
-
-    const sprite = new PIXI.Sprite(texture)
-    sprite.anchor.set(0.5)
-    sprite.position.set(initialPos.x, initialPos.y)
-    this.gameContainer.addChild(sprite)
-
-    this.enemies.push({
-      sprite,
-      type: item.type,
-      row: item.row,
-      col: item.col,
-      targetSlot: slot,
-      state: 'entering',
-      health,
-      path,
-      pathIndex: 0,
-      frameTimer: 0,
-      currentFrame: 1,
-      hasFired: false,
-    })
-  }
-
-  // --- CORE GAME LOOP UPDATE ---
   public update(delta: number) {
     this.updateStars(delta)
 
@@ -379,14 +356,9 @@ export class GalagaGame {
       return
     }
 
-    if (this.isStageIntro) {
-      return
-    }
-
     this.updatePlayer(delta)
-    this.updateSwarmEntrance(delta)
-    this.updateFormation(delta)
-    this.updateDiveBombers(delta)
+    this.updateWaveSpawn(delta)
+    this.updateEnemies(delta)
     this.updateBullets(delta)
     this.updateExplosions(delta)
     this.checkCollisions()
@@ -395,15 +367,15 @@ export class GalagaGame {
 
   private updateStars(delta: number) {
     for (const star of this.stars) {
-      star.gfx.y += star.speed * delta
+      star.gfx.y += (star.speed * delta) / 60
       if (star.gfx.y > this.height) {
         star.gfx.y = 0
-        star.gfx.x = Math.random() * this.width
+        star.gfx.x = Math.floor(Math.random() * this.width)
       }
       star.twinkleTimer += delta
-      if (star.twinkleTimer > 40) {
-        star.gfx.alpha = Math.random() > 0.4 ? 1.0 : 0.4
+      if (star.twinkleTimer > 30) {
         star.twinkleTimer = 0
+        star.gfx.alpha = 0.5 + Math.random() * 0.5
       }
     }
   }
@@ -415,8 +387,8 @@ export class GalagaGame {
         if (this.lives > 0) {
           this.isPlayerDead = false
           this.player.visible = true
-          this.player.position.set(this.width / 2, this.height - 50)
-          this.invulnerableTimer = 120 // 2 seconds invulnerability
+          this.player.position.set(this.width / 2, this.height - 14)
+          this.invulnerableTimer = 120
         } else {
           this.gameOver()
         }
@@ -424,7 +396,6 @@ export class GalagaGame {
       return
     }
 
-    // Invulnerability blinking
     if (this.invulnerableTimer > 0) {
       this.invulnerableTimer -= delta
       this.player.alpha = Math.floor(this.invulnerableTimer / 8) % 2 === 0 ? 0.4 : 1.0
@@ -432,190 +403,195 @@ export class GalagaGame {
       this.player.alpha = 1.0
     }
 
-    // Player Movement
-    const speed = 4.2 * delta
+    const speed = (90 * delta) / 60
     if (this.input.left) {
       this.player.x -= speed
     }
     if (this.input.right) {
       this.player.x += speed
     }
-    this.player.x = Math.max(24, Math.min(this.width - 24, this.player.x))
 
-    // Player Firing (Authentic Galaga rule: maximum 2 missiles on screen at once!)
+    // Keep player in bounds
+    this.player.x = Math.max(10, Math.min(this.width - 10, this.player.x))
+
+    // Player Shooting
     if (this.fireCooldown > 0) {
       this.fireCooldown -= delta
     }
 
-    const playerMissiles = this.bullets.filter(b => b.isPlayer)
-    if (this.input.fire && this.fireCooldown <= 0 && playerMissiles.length < 2) {
-      this.firePlayerMissile()
-      this.fireCooldown = 14 // Rate limit
+    if (this.input.fire && this.fireCooldown <= 0 && !this.isStageIntro) {
+      this.firePlayerLaser()
+      this.fireCooldown = 15 // ~0.25s at 60fps
     }
   }
 
-  private firePlayerMissile() {
+  private firePlayerLaser() {
+    const activePlayerMissiles = this.bullets.filter(b => b.isPlayer).length
+    if (activePlayerMissiles >= 2) return // Game Boy 2-bullet limit
+
     sound.playLaser()
-    const sprite = new PIXI.Sprite(this.textures.playerLaser)
-    sprite.anchor.set(0.5)
-    sprite.position.set(this.player.x, this.player.y - 16)
-    this.gameContainer.addChild(sprite)
+
+    const missile = new PIXI.Sprite(this.textures.playerLaser)
+    missile.anchor.set(0.5)
+    missile.position.set(this.player.x, this.player.y - 8)
+    this.gameContainer.addChild(missile)
 
     this.bullets.push({
-      sprite,
+      sprite: missile,
       vx: 0,
-      vy: -10.5,
+      vy: -180,
       isPlayer: true,
     })
   }
 
-  private updateSwarmEntrance(delta: number) {
-    if (this.waveQueue.length > 0) {
-      this.spawnTimer += delta
-      const next = this.waveQueue[0]
-      if (this.spawnTimer >= next.delay) {
-        this.spawnTimer = 0
-        this.waveQueue.shift()
-        this.spawnEnemy(next)
-      }
+  private updateWaveSpawn(delta: number) {
+    if (this.isStageIntro || this.waveQueue.length === 0) return
+
+    this.spawnCooldown -= delta
+    if (this.spawnCooldown <= 0) {
+      const item = this.waveQueue.shift()!
+      this.spawnCooldown = 22 // Delay between ship spawns
+
+      const slot = this.getFormationSlot(item.row, item.col)
+      const path = getGBEntrancePath(item.pathType, slot)
+      this.spawnEnemy(item.type, item.row, item.col, slot, path)
     }
   }
 
-  private updateFormation(delta: number) {
-    this.formationTime += delta * 0.045
-    const swayX = Math.sin(this.formationTime) * 16
+  private spawnEnemy(type: EnemyType, row: number, col: number, slot: Point, path: Point[]) {
+    const sprite = new PIXI.Sprite(this.getEnemyTexture(type, 1, 2))
+    sprite.anchor.set(0.5)
+    sprite.position.set(path[0].x, path[0].y)
+    this.gameContainer.addChild(sprite)
 
-    for (const enemy of this.enemies) {
-      // Flapping wing animation
+    this.enemies.push({
+      sprite,
+      type,
+      row,
+      col,
+      targetSlot: slot,
+      state: 'entering',
+      health: type === 'boss' ? 2 : 1,
+      path,
+      pathIndex: 0,
+      frameTimer: 0,
+      currentFrame: 1,
+      hasFired: false,
+    })
+  }
+
+  private getEnemyTexture(type: EnemyType, frame: number, health: number): PIXI.Texture {
+    if (type === 'bee') {
+      return frame === 1 ? this.textures.bee1 : this.textures.bee2
+    }
+    if (type === 'butterfly') {
+      return frame === 1 ? this.textures.butterfly1 : this.textures.butterfly2
+    }
+    if (health === 1) {
+      return frame === 1 ? this.textures.bossBlue1 : this.textures.bossBlue2
+    }
+    return frame === 1 ? this.textures.bossGreen1 : this.textures.bossGreen2
+  }
+
+  private updateEnemyTexture(enemy: Enemy) {
+    enemy.sprite.texture = this.getEnemyTexture(enemy.type, enemy.currentFrame, enemy.health)
+  }
+
+  private updateEnemies(delta: number) {
+    this.formationTime += (delta * 2.2) / 60
+    const swayX = Math.sin(this.formationTime) * 6
+    const swayY = Math.cos(this.formationTime * 1.5) * 2
+
+    // Dive attack timer
+    this.diveTimer += delta
+    if (this.diveTimer > 120 && !this.isStageIntro) {
+      this.diveTimer = 0
+      this.triggerEnemyDive()
+    }
+
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      const enemy = this.enemies[i]
+
+      // Animation frames
       enemy.frameTimer += delta
-      if (enemy.frameTimer >= 22) {
+      if (enemy.frameTimer > 15) {
         enemy.frameTimer = 0
         enemy.currentFrame = enemy.currentFrame === 1 ? 2 : 1
         this.updateEnemyTexture(enemy)
       }
 
       if (enemy.state === 'entering') {
-        enemy.pathIndex += 1.8 * delta
-        const idx = Math.floor(enemy.pathIndex)
-        if (idx < enemy.path.length) {
-          const pt = enemy.path[idx]
-          enemy.sprite.position.set(pt.x, pt.y)
+        enemy.pathIndex += 1
+        if (enemy.pathIndex < enemy.path.length) {
+          const pt = enemy.path[enemy.pathIndex]
+          enemy.sprite.x = pt.x
+          enemy.sprite.y = pt.y
         } else {
           enemy.state = 'formation'
         }
       } else if (enemy.state === 'formation') {
         enemy.sprite.x = enemy.targetSlot.x + swayX
-        enemy.sprite.y = enemy.targetSlot.y
+        enemy.sprite.y = enemy.targetSlot.y + swayY
         enemy.sprite.rotation = 0
-      } else if (enemy.state === 'returning') {
-        // Smooth return from top of screen into formation slot
-        const destX = enemy.targetSlot.x + swayX
-        const destY = enemy.targetSlot.y
-        enemy.sprite.x += (destX - enemy.sprite.x) * 0.06 * delta
-        enemy.sprite.y += (destY - enemy.sprite.y) * 0.06 * delta
+      } else if (enemy.state === 'diving') {
+        enemy.pathIndex += 1
+        if (enemy.pathIndex < enemy.path.length) {
+          const pt = enemy.path[enemy.pathIndex]
+          const dx = pt.x - enemy.sprite.x
+          const dy = pt.y - enemy.sprite.y
+          enemy.sprite.rotation = Math.atan2(dy, dx) - Math.PI / 2
+          enemy.sprite.x = pt.x
+          enemy.sprite.y = pt.y
 
-        if (Math.hypot(destX - enemy.sprite.x, destY - enemy.sprite.y) < 5) {
-          enemy.state = 'formation'
-          enemy.hasFired = false
-        }
-      }
-    }
-  }
-
-  private updateEnemyTexture(enemy: Enemy) {
-    if (enemy.type === 'bee') {
-      enemy.sprite.texture = enemy.currentFrame === 1 ? this.textures.bee1 : this.textures.bee2
-    } else if (enemy.type === 'butterfly') {
-      enemy.sprite.texture = enemy.currentFrame === 1 ? this.textures.butterfly1 : this.textures.butterfly2
-    } else if (enemy.type === 'boss') {
-      if (enemy.health > 1) {
-        enemy.sprite.texture = enemy.currentFrame === 1 ? this.textures.bossGreen1 : this.textures.bossGreen2
-      } else {
-        enemy.sprite.texture = enemy.currentFrame === 1 ? this.textures.bossBlue1 : this.textures.bossBlue2
-      }
-    }
-  }
-
-  private updateDiveBombers(delta: number) {
-    // Only launch dive bombers when no more enemies are queued to spawn
-    if (this.waveQueue.length > 0) return
-
-    this.diveTimer += delta
-    const diveInterval = Math.max(60, 140 - this.stage * 15) // Faster in higher stages
-
-    if (this.diveTimer >= diveInterval) {
-      this.diveTimer = 0
-      const formationEnemies = this.enemies.filter(e => e.state === 'formation')
-      if (formationEnemies.length > 0) {
-        // Pick 1 to 2 random enemies to dive
-        const count = Math.min(formationEnemies.length, Math.random() > 0.6 ? 2 : 1)
-        for (let i = 0; i < count; i++) {
-          const victim = formationEnemies[Math.floor(Math.random() * formationEnemies.length)]
-          this.launchDive(victim)
-        }
-      }
-    }
-
-    // Process diving enemies
-    for (const enemy of this.enemies) {
-      if (enemy.state === 'diving') {
-        enemy.pathIndex += (1.9 + this.stage * 0.2) * delta
-        const idx = Math.floor(enemy.pathIndex)
-
-        if (idx < enemy.path.length) {
-          const pt = enemy.path[idx]
-          const nextPt = enemy.path[Math.min(enemy.path.length - 1, idx + 1)]
-          enemy.sprite.position.set(pt.x, pt.y)
-
-          // Rotate sprite along flight direction
-          const angle = Math.atan2(nextPt.y - pt.y, nextPt.x - pt.x) - Math.PI / 2
-          enemy.sprite.rotation = angle
-
-          // Fire bullet midway through dive
-          if (!enemy.hasFired && pt.y > this.height * 0.35 && pt.y < this.height * 0.7) {
-            this.fireAlienBullet(enemy)
+          // Enemy fires a bullet mid-dive
+          if (!enemy.hasFired && pt.y > this.height * 0.4 && pt.y < this.height * 0.7) {
             enemy.hasFired = true
+            this.fireAlienBullet(enemy.sprite.x, enemy.sprite.y)
           }
         } else {
-          // Off bottom of screen, loop back to top
+          // Wrapped around bottom of screen, return to formation
           enemy.state = 'returning'
-          enemy.sprite.x = enemy.targetSlot.x
-          enemy.sprite.y = -30
           enemy.sprite.rotation = 0
+          enemy.hasFired = false
+          enemy.sprite.y = -10
+          enemy.sprite.x = enemy.targetSlot.x
+        }
+      } else if (enemy.state === 'returning') {
+        enemy.sprite.y += (70 * delta) / 60
+        if (enemy.sprite.y >= enemy.targetSlot.y) {
+          enemy.state = 'formation'
         }
       }
     }
   }
 
-  private launchDive(enemy: Enemy) {
-    sound.playDive()
-    enemy.state = 'diving'
-    enemy.hasFired = false
-    enemy.path = getDivePath(
-      { x: enemy.sprite.x, y: enemy.sprite.y },
+  private triggerEnemyDive() {
+    const formationEnemies = this.enemies.filter(e => e.state === 'formation')
+    if (formationEnemies.length === 0) return
+
+    const diver = formationEnemies[Math.floor(Math.random() * formationEnemies.length)]
+    diver.state = 'diving'
+    diver.path = getDivePath(
+      { x: diver.sprite.x, y: diver.sprite.y },
       this.player.x,
       this.width,
       this.height
     )
-    enemy.pathIndex = 0
+    diver.pathIndex = 0
+    diver.hasFired = false
+    sound.playDive()
   }
 
-  private fireAlienBullet(enemy: Enemy) {
-    const sprite = new PIXI.Sprite(this.textures.alienBullet)
-    sprite.anchor.set(0.5)
-    sprite.position.set(enemy.sprite.x, enemy.sprite.y + 10)
-    this.gameContainer.addChild(sprite)
-
-    // Aim toward player
-    const dx = this.player.x - enemy.sprite.x
-    const dy = this.player.y - enemy.sprite.y
-    const angle = Math.atan2(dy, dx)
-    const speed = 4.0 + this.stage * 0.5
+  private fireAlienBullet(x: number, y: number) {
+    const bullet = new PIXI.Sprite(this.textures.alienBullet)
+    bullet.anchor.set(0.5)
+    bullet.position.set(x, y)
+    this.gameContainer.addChild(bullet)
 
     this.bullets.push({
-      sprite,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
+      sprite: bullet,
+      vx: 0,
+      vy: 110,
       isPlayer: false,
     })
   }
@@ -623,11 +599,10 @@ export class GalagaGame {
   private updateBullets(delta: number) {
     for (let i = this.bullets.length - 1; i >= 0; i--) {
       const b = this.bullets[i]
-      b.sprite.x += b.vx * delta
-      b.sprite.y += b.vy * delta
+      b.sprite.y += (b.vy * delta) / 60
+      b.sprite.x += (b.vx * delta) / 60
 
-      // Out of bounds cleanup
-      if (b.sprite.y < -20 || b.sprite.y > this.height + 20 || b.sprite.x < -20 || b.sprite.x > this.width + 20) {
+      if (b.sprite.y < -10 || b.sprite.y > this.height + 10 || b.sprite.x < -10 || b.sprite.x > this.width + 10) {
         b.sprite.destroy()
         this.bullets.splice(i, 1)
       }
@@ -638,7 +613,7 @@ export class GalagaGame {
     for (let i = this.explosions.length - 1; i >= 0; i--) {
       const exp = this.explosions[i]
       exp.timer += delta
-      if (exp.timer >= 5) {
+      if (exp.timer > 5) {
         exp.timer = 0
         exp.frameIndex++
         if (exp.frameIndex < this.textures.explosions.length) {
@@ -674,7 +649,7 @@ export class GalagaGame {
         const enemy = this.enemies[eIdx]
         const dist = Math.hypot(bullet.sprite.x - enemy.sprite.x, bullet.sprite.y - enemy.sprite.y)
 
-        if (dist < 18) {
+        if (dist < 10) {
           // Hit!
           bullet.sprite.destroy()
           this.bullets.splice(bIdx, 1)
@@ -695,7 +670,7 @@ export class GalagaGame {
             enemy.sprite.destroy()
             this.enemies.splice(eIdx, 1)
           } else {
-            // Damaged Boss Galaga (turn blue)
+            // Damaged Boss (turn blue)
             sound.playLaser()
             this.addScore(50)
             this.updateEnemyTexture(enemy)
@@ -714,7 +689,7 @@ export class GalagaGame {
       if (bullet.isPlayer) continue
 
       const dist = Math.hypot(bullet.sprite.x - this.player.x, bullet.sprite.y - this.player.y)
-      if (dist < 14) {
+      if (dist < 8) {
         bullet.sprite.destroy()
         this.bullets.splice(bIdx, 1)
         this.killPlayer()
@@ -725,7 +700,7 @@ export class GalagaGame {
     // Enemy collision with Player
     for (const enemy of this.enemies) {
       const dist = Math.hypot(enemy.sprite.x - this.player.x, enemy.sprite.y - this.player.y)
-      if (dist < 20) {
+      if (dist < 12) {
         sound.playExplosion()
         this.createExplosion(enemy.sprite.x, enemy.sprite.y)
         enemy.sprite.destroy()
@@ -743,7 +718,7 @@ export class GalagaGame {
     this.player.visible = false
     this.lives--
     this.updateLifeIcons()
-    this.respawnTimer = 110 // Respawn delay
+    this.respawnTimer = 90
   }
 
   private addScore(pts: number) {
@@ -758,27 +733,25 @@ export class GalagaGame {
 
   private checkWaveProgress() {
     if (this.waveQueue.length === 0 && this.enemies.length === 0 && !this.isStageIntro && !this.isGameOver) {
-      // Wave Cleared!
       this.isStageIntro = true
       this.messageText.text = `STAGE CLEARED!`
       this.messageText.visible = true
 
       setTimeout(() => {
         this.startStage(this.stage + 1)
-      }, 2000)
+      }, 1800)
     }
   }
 
   private gameOver() {
     this.isGameOver = true
-    this.messageText.text = `GAME OVER\n\nFINAL SCORE: ${this.score}\n\nPRESS FIRE TO PLAY`
+    this.messageText.text = `GAME OVER\nSCORE: ${this.score}\nFIRE TO PLAY`
     this.messageText.visible = true
 
-    // Submit score to elements-server (if available)
     if (this.score > 0) {
       leaderboard.submitScore('YOU', this.score, this.stage, 'web').then(res => {
         if (res && res.rank) {
-          this.messageText.text = `GAME OVER\n\nFINAL SCORE: ${this.score}\nGLOBAL RANK: #${res.rank}\n\nPRESS FIRE TO PLAY`
+          this.messageText.text = `GAME OVER\nSCORE: ${this.score}\nRANK: #${res.rank}\nFIRE TO PLAY`
         }
       })
     }

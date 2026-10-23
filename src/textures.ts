@@ -1,4 +1,7 @@
 import * as PIXI from 'pixi.js'
+import palettesData from './palettes.json'
+
+export type ThemeType = 'dmg' | 'pocket' | 'gbc' | 'arcade'
 
 // Helper to draw pixel matrices onto a canvas and return a PIXI.Texture
 function createPixelTexture(
@@ -6,7 +9,7 @@ function createPixelTexture(
   height: number,
   pixels: string[],
   colorMap: Record<string, string>,
-  scale = 2
+  scale = 1
 ): PIXI.Texture {
   const canvas = document.createElement('canvas')
   canvas.width = width * scale
@@ -46,18 +49,68 @@ export interface GameTextures {
   explosions: PIXI.Texture[]
 }
 
-export function generateTextures(): GameTextures {
-  const colors = {
-    W: '#FFFFFF', // White
-    R: '#FF2222', // Bright Red
-    B: '#2277FF', // Blue
-    Y: '#FFE000', // Yellow
-    G: '#00DD44', // Green
-    C: '#22FFFF', // Cyan
-    O: '#FF8800', // Orange
-    P: '#AA44FF', // Purple
-    D: '#444444', // Dark gray
+export function getColorMapForTheme(theme: ThemeType): Record<string, string> {
+  const dmg = palettesData.palettes.dmg.colors
+  const pocket = palettesData.palettes.pocket.colors
+
+  switch (theme) {
+    case 'dmg':
+      return {
+        W: dmg.lightest, // #e0f8d0
+        C: dmg.lightest,
+        B: dmg.light,    // #88c070
+        Y: dmg.light,
+        G: dmg.light,
+        R: dmg.dark,     // #346856
+        O: dmg.dark,
+        P: dmg.dark,
+        D: dmg.darkest,  // #081820
+      }
+
+    case 'pocket':
+      return {
+        W: pocket.lightest, // #ffffff
+        C: pocket.lightest,
+        B: pocket.light,    // #aaaaaa
+        Y: pocket.light,
+        G: pocket.light,
+        R: pocket.dark,     // #555555
+        O: pocket.dark,
+        P: pocket.dark,
+        D: pocket.darkest,  // #000000
+      }
+
+    case 'gbc':
+      return {
+        W: '#ffffff',
+        R: '#d82800',
+        B: '#0068f8',
+        Y: '#f8d800',
+        G: '#00e848',
+        C: '#00e8d8',
+        O: '#f88800',
+        P: '#b80040',
+        D: '#181828',
+      }
+
+    case 'arcade':
+    default:
+      return {
+        W: '#FFFFFF',
+        R: '#FF2222',
+        B: '#2277FF',
+        Y: '#FFE000',
+        G: '#00DD44',
+        C: '#22FFFF',
+        O: '#FF8800',
+        P: '#AA44FF',
+        D: '#444444',
+      }
   }
+}
+
+export function generateTextures(theme: ThemeType = 'dmg', scale = 1): GameTextures {
+  const colors = getColorMapForTheme(theme)
 
   // --- PLAYER FIGHTER (15 x 16) ---
   const playerPixels = [
@@ -78,8 +131,8 @@ export function generateTextures(): GameTextures {
     '               ',
     '               ',
   ]
-  const player = createPixelTexture(15, 16, playerPixels, colors, 2)
-  const playerMini = createPixelTexture(15, 16, playerPixels, colors, 1)
+  const player = createPixelTexture(15, 16, playerPixels, colors, scale)
+  const playerMini = createPixelTexture(15, 16, playerPixels, colors, Math.max(1, Math.floor(scale / 2)))
 
   // --- BEE / ZAKO (Yellow alien) (16 x 16) Frame 1 & 2 ---
   const bee1Pixels = [
@@ -119,8 +172,8 @@ export function generateTextures(): GameTextures {
     '      YY        ',
     '                ',
   ]
-  const bee1 = createPixelTexture(16, 16, bee1Pixels, colors, 2)
-  const bee2 = createPixelTexture(16, 16, bee2Pixels, colors, 2)
+  const bee1 = createPixelTexture(16, 16, bee1Pixels, colors, scale)
+  const bee2 = createPixelTexture(16, 16, bee2Pixels, colors, scale)
 
   // --- BUTTERFLY / GOEI (Red alien) (16 x 16) Frame 1 & 2 ---
   const bfly1Pixels = [
@@ -160,8 +213,8 @@ export function generateTextures(): GameTextures {
     '                ',
     '                ',
   ]
-  const butterfly1 = createPixelTexture(16, 16, bfly1Pixels, colors, 2)
-  const butterfly2 = createPixelTexture(16, 16, bfly2Pixels, colors, 2)
+  const butterfly1 = createPixelTexture(16, 16, bfly1Pixels, colors, scale)
+  const butterfly2 = createPixelTexture(16, 16, bfly2Pixels, colors, scale)
 
   // --- BOSS GALAGA (Green - Healthy) (16 x 16) Frame 1 & 2 ---
   const bossG1Pixels = [
@@ -201,16 +254,16 @@ export function generateTextures(): GameTextures {
     '                ',
     '                ',
   ]
-  const bossGreen1 = createPixelTexture(16, 16, bossG1Pixels, colors, 2)
-  const bossGreen2 = createPixelTexture(16, 16, bossG2Pixels, colors, 2)
+  const bossGreen1 = createPixelTexture(16, 16, bossG1Pixels, colors, scale)
+  const bossGreen2 = createPixelTexture(16, 16, bossG2Pixels, colors, scale)
 
   // --- BOSS GALAGA (Blue - Damaged) ---
   const bossB1Pixels = bossG1Pixels.map(row => row.replace(/G/g, 'B'))
   const bossB2Pixels = bossG2Pixels.map(row => row.replace(/G/g, 'B'))
-  const bossBlue1 = createPixelTexture(16, 16, bossB1Pixels, colors, 2)
-  const bossBlue2 = createPixelTexture(16, 16, bossB2Pixels, colors, 2)
+  const bossBlue1 = createPixelTexture(16, 16, bossB1Pixels, colors, scale)
+  const bossBlue2 = createPixelTexture(16, 16, bossB2Pixels, colors, scale)
 
-  // --- PLAYER MISSILE (Twin Laser) (5 x 12) ---
+  // --- PLAYER MISSILE (Twin Laser) (3 x 8) ---
   const laserPixels = [
     'R R',
     'Y Y',
@@ -221,9 +274,9 @@ export function generateTextures(): GameTextures {
     'Y Y',
     'R R',
   ]
-  const playerLaser = createPixelTexture(3, 8, laserPixels, colors, 2)
+  const playerLaser = createPixelTexture(3, 8, laserPixels, colors, scale)
 
-  // --- ALIEN BULLET (3 x 6) ---
+  // --- ALIEN BULLET (3 x 5) ---
   const bulletPixels = [
     ' O ',
     'OOO',
@@ -231,7 +284,7 @@ export function generateTextures(): GameTextures {
     'OOO',
     ' O ',
   ]
-  const alienBullet = createPixelTexture(3, 5, bulletPixels, colors, 2)
+  const alienBullet = createPixelTexture(3, 5, bulletPixels, colors, scale)
 
   // --- EXPLOSIONS (4 frames) ---
   const exp1 = [
@@ -259,10 +312,10 @@ export function generateTextures(): GameTextures {
     'R  O  R',
   ]
   const explosions = [
-    createPixelTexture(5, 3, exp1, colors, 3),
-    createPixelTexture(5, 5, exp2, colors, 3),
-    createPixelTexture(7, 5, exp3, colors, 3),
-    createPixelTexture(7, 5, exp4, colors, 3),
+    createPixelTexture(5, 3, exp1, colors, Math.max(1, scale)),
+    createPixelTexture(5, 5, exp2, colors, Math.max(1, scale)),
+    createPixelTexture(7, 5, exp3, colors, Math.max(1, scale)),
+    createPixelTexture(7, 5, exp4, colors, Math.max(1, scale)),
   ]
 
   return {
