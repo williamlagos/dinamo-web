@@ -10,16 +10,25 @@ An authentic retro arcade and Game Boy space shooter inspired by the 1981 classi
 
 ---
 
+## Direction & Roadmap
+
+> Decoupled from [`dinamo`](https://github.com/williamlagos/dinamo) to serve as an independent **Web Multiplayer & Live `elements-server` Arcade Showcase**:
+> - **Real-Time Multiplayer & Leaderboards:** Expand [`src/leaderboard.ts`](src/leaderboard.ts) and WebSocket sync with [`elements-server`](https://github.com/williamlagos/elements-server) for live co-op/versus sessions and global high-score boards.
+> - **Browser-Native Sandbox:** Break out of 160×144 hardware limits to experiment with widescreen WebGL2 shaders, custom wave editors, and instant browser sharing.
+> - **Standalone Baseline:** Built on the current PixiJS 7 + Web Audio API 160×144 shooter engine below.
+
+---
+
 ## Overview
 
-Dinamo Web brings the authentic 160×144 retro Game Boy look and feel directly to modern browsers:
+The current baseline brings a 160×144 retro arcade & Game Boy look and feel directly to modern browsers:
 - **Unified 160×144 Game Boy Viewport:** Exact 10:9 aspect ratio integer-scaled with nearest-neighbor interpolation (`image-rendering: pixelated;`). Clean, centered display without faux plastic bezels.
 - **Multiple Authentic 4-Color Palettes:**
   - **DMG (1989):** Classic pea-green dot-matrix LCD shades (`#e0f8d0`, `#88c070`, `#346856`, `#081820`).
   - **POCKET (1996):** Film-compensated true monochrome FSTN LCD (`#ffffff`, `#aaaaaa`, `#555555`, `#000000`).
   - **GBC (1998):** Colorized sprite banks with deep space background.
   - **ARCADE (1981):** Original full-color Galaga arcade aesthetics.
-- **Shared Assets:** Sprites, starfields, and palette specifications shared with `gbgame`, `apple`, and `android`.
+- **Procedural Pixel Art & Palettes:** Canvas-generated nearest-neighbor pixel textures paired with bundled palette definitions.
 - **Authentic 8-Bit Chiptune Sound:** Real-time Web Audio API synthesis simulating the Game Boy Sound Controller:
   - Channel 1 & 2 pulse waves with frequency sweep (laser chirps, dive sirens, intro arpeggios).
   - Channel 4 7-bit & 15-bit LFSR pseudo-random noise generator with stepped volume decay for metallic crashes and explosions.
